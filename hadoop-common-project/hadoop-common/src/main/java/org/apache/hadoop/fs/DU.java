@@ -183,11 +183,15 @@ public class DU extends Shell {
    */
   @Override
   protected void run() throws IOException {
-    if (WINDOWS) {
+    /*if (WINDOWS) {
       used.set(DUHelper.getFolderUsage(dirPath));
       return;
     }
-    super.run();
+    super.run();*/
+	  
+		// More generic solution(Platform independent), Fix for OSv integration
+		// to avoid 'du -sk' shell command
+		used.set(DUHelper.getFolderUsage(dirPath));
   }
   
   /**
