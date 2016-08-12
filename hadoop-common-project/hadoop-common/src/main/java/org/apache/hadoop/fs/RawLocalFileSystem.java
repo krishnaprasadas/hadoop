@@ -19,23 +19,26 @@
 
 package org.apache.hadoop.fs;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import java.io.BufferedOutputStream;
 import java.io.DataOutput;
 import java.io.EOFException;
 import java.io.File;
+import java.io.FileDescriptor;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.FileDescriptor;
 import java.net.URI;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFileAttributes;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Arrays;
 import java.util.EnumSet;
-import java.util.StringTokenizer;
+import java.util.Set;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
@@ -43,10 +46,11 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.nativeio.NativeIO;
-import org.apache.hadoop.io.nativeio.NativeIOException;
 import org.apache.hadoop.util.Progressable;
 import org.apache.hadoop.util.Shell;
 import org.apache.hadoop.util.StringUtils;
+
+import com.google.common.annotations.VisibleForTesting;
 
 /****************************************************************
  * Implement the FileSystem API for the raw local filesystem.
@@ -651,53 +655,45 @@ public class RawLocalFileSystem extends FileSystem {
     }
 
     /// loads permissions, owner, and group from `ls -ld`
-    private void loadPermissionInfo() {
-      IOException e = null;
-      try {
-        String output = FileUtil.execCommand(new File(getPath().toUri()), 
-            Shell.getGetPermissionCommand());
-        StringTokenizer t =
-            new StringTokenizer(output, Shell.TOKEN_SEPARATOR_REGEX);
-        //expected format
-        //-rw-------    1 username groupname ...
-        String permission = t.nextToken();
-        if (permission.length() > FsPermission.MAX_PERMISSION_LENGTH) {
-          //files with ACLs might have a '+'
-          permission = permission.substring(0,
-            FsPermission.MAX_PERMISSION_LENGTH);
-        }
-        setPermission(FsPermission.valueOf(permission));
-        t.nextToken();
+        private void loadPermissionInfo() {
+            IOException e = null;
+            try {
+                java.nio.file.Path path = java.nio.file.Paths.get(getPath().toUri());
+                final Set<PosixFilePermission> posixFilePermissions = Files.getPosixFilePermissions(path);
 
-        String owner = t.nextToken();
-        // If on windows domain, token format is DOMAIN\\user and we want to
-        // extract only the user name
-        if (Shell.WINDOWS) {
-          int i = owner.indexOf('\\');
-          if (i != -1)
-            owner = owner.substring(i + 1);
-        }
-        setOwner(owner);
+                // -rw-------
+                String permission = "-" + PosixFilePermissions.toString(posixFilePermissions);
+                if (permission.length() > FsPermission.MAX_PERMISSION_LENGTH) {
+                    // && permission.endsWith("+")
 
-        setGroup(t.nextToken());
-      } catch (Shell.ExitCodeException ioe) {
-        if (ioe.getExitCode() != 1) {
-          e = ioe;
-        } else {
-          setPermission(null);
-          setOwner(null);
-          setGroup(null);
+                    // files with ACLs might have a '+'
+                    permission = permission.substring(0, FsPermission.MAX_PERMISSION_LENGTH);
+                }
+                setPermission(FsPermission.valueOf(permission));
+
+                String owner = Files.getOwner(path).getName();
+                /*// If on windows domain, token format is DOMAIN\\user and we
+                // want to
+                // extract only the user name
+                if (Shell.WINDOWS) {
+                    int i = owner.indexOf('\\');
+                    if (i != -1)
+                        owner = owner.substring(i + 1);
+                }*/
+                setOwner(owner);
+
+                final PosixFileAttributeView posixFileAttributeView = Files.getFileAttributeView(path, PosixFileAttributeView.class);
+                final PosixFileAttributes posixFileAttributes = posixFileAttributeView.readAttributes();
+                setGroup(posixFileAttributes.group().getName());
+
+            } catch (IOException ioe) {
+                e = ioe;
+            } finally {
+                if (e != null) {
+                    throw new RuntimeException("Error while reading " + "file permissions : " + StringUtils.stringifyException(e));
+                }
+            }
         }
-      } catch (IOException ioe) {
-        e = ioe;
-      } finally {
-        if (e != null) {
-          throw new RuntimeException("Error while running command to get " +
-                                     "file permissions : " + 
-                                     StringUtils.stringifyException(e));
-        }
-      }
-    }
 
     @Override
     public void write(DataOutput out) throws IOException {
