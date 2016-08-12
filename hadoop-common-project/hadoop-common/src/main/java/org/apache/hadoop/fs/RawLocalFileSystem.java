@@ -723,9 +723,10 @@ public class RawLocalFileSystem extends FileSystem {
       NativeIO.POSIX.chmod(pathToFile(p).getCanonicalPath(),
                      permission.toShort());
     } else {
-      String perm = String.format("%04o", permission.toShort());
-      Shell.execCommand(Shell.getSetPermissionCommand(perm, false,
-        FileUtil.makeShellPath(pathToFile(p), true)));
+//      String perm = String.format("%04o", permission.toShort());
+//      Shell.execCommand(Shell.getSetPermissionCommand(perm, false,
+//      FileUtil.makeShellPath(pathToFile(p), true)));
+        PosixPermissionUtils.setPosixPermission(p, permission);
     }
   }
  
