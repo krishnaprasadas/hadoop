@@ -1,3 +1,4 @@
 language: java
 jdk:
   - oraclejdk8
+build: ./start-build-env.sh
