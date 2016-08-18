@@ -38,8 +38,14 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.BasicFileAttributeView;
 import java.nio.file.attribute.FileTime;
+loimport java.nio.file.Files;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFileAttributes;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.Set;
 import java.util.StringTokenizer;
 
 import org.apache.hadoop.classification.InterfaceAudience;
@@ -701,53 +707,35 @@ public class RawLocalFileSystem extends FileSystem {
     }
 
     /// loads permissions, owner, and group from `ls -ld`
-    private void loadPermissionInfo() {
-      IOException e = null;
-      try {
-        String output = FileUtil.execCommand(new File(getPath().toUri()), 
-            Shell.getGetPermissionCommand());
-        StringTokenizer t =
-            new StringTokenizer(output, Shell.TOKEN_SEPARATOR_REGEX);
-        //expected format
-        //-rw-------    1 username groupname ...
-        String permission = t.nextToken();
-        if (permission.length() > FsPermission.MAX_PERMISSION_LENGTH) {
-          //files with ACLs might have a '+'
-          permission = permission.substring(0,
-            FsPermission.MAX_PERMISSION_LENGTH);
-        }
-        setPermission(FsPermission.valueOf(permission));
-        t.nextToken();
+private void loadPermissionInfo() {
+            IOException e = null;
+            try {
+                java.nio.file.Path path = java.nio.file.Paths.get(getPath().toUri());
+                final Set<PosixFilePermission> posixFilePermissions = Files.getPosixFilePermissions(path);
 
-        String owner = t.nextToken();
-        // If on windows domain, token format is DOMAIN\\user and we want to
-        // extract only the user name
-        if (Shell.WINDOWS) {
-          int i = owner.indexOf('\\');
-          if (i != -1)
-            owner = owner.substring(i + 1);
-        }
-        setOwner(owner);
+                // -rw-------
+                String permission = "-" + PosixFilePermissions.toString(posixFilePermissions);
+                if (permission.length() > FsPermission.MAX_PERMISSION_LENGTH) {
+                    // && permission.endsWith("+")
 
-        setGroup(t.nextToken());
-      } catch (Shell.ExitCodeException ioe) {
-        if (ioe.getExitCode() != 1) {
-          e = ioe;
-        } else {
-          setPermission(null);
-          setOwner(null);
-          setGroup(null);
+                    // files with ACLs might have a '+'
+                    permission = permission.substring(0, FsPermission.MAX_PERMISSION_LENGTH);
+                }
+                setPermission(FsPermission.valueOf(permission));
+                String owner = Files.getOwner(path).getName();
+                setOwner(owner);
+                final PosixFileAttributeView posixFileAttributeView = Files.getFileAttributeView(path, PosixFileAttributeView.class);
+                final PosixFileAttributes posixFileAttributes = posixFileAttributeView.readAttributes();
+                setGroup(posixFileAttributes.group().getName());
+
+            } catch (IOException ioe) {
+                e = ioe;
+            } finally {
+                if (e != null) {
+                    throw new RuntimeException("Error while reading " + "file permissions : " + StringUtils.stringifyException(e));
+                }
+            }
         }
-      } catch (IOException ioe) {
-        e = ioe;
-      } finally {
-        if (e != null) {
-          throw new RuntimeException("Error while running command to get " +
-                                     "file permissions : " + 
-                                     StringUtils.stringifyException(e));
-        }
-      }
-    }
 
     @Override
     public void write(DataOutput out) throws IOException {
