@@ -1,6 +1,8 @@
 package org.apache.hadoop.fs;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFilePermission;
@@ -117,7 +119,42 @@ public class PosixPermissionUtils {
                 break;
             }
         }
-        Files.setPosixFilePermissions(Paths.get(p.toUri()), perms);
+        URI uri = p.toUri();
+        java.nio.file.Path nioPath = null;
+        if (uri.getScheme() == null) {
+            try {
+                String path = uri.getPath();
+                if (!path.startsWith("/")) {
+                    nioPath = Paths.get(".", path);
+                } else {
+                    uri = new URI("file:///" + path);
+                    nioPath = Paths.get(uri);
+                }
+            } catch (URISyntaxException e) {
+                throw new IOException(e);
+            }
+        } else {
+            nioPath = Paths.get(uri);
+        }
+
+        Files.setPosixFilePermissions(nioPath, perms);
         return perms;
+    }
+    public static void main(String[] args) {
+        Path p = new Path("./test.set/data");
+        
+        URI uri = p.toUri();
+        if(uri.getScheme()==null){
+         try {
+            uri=  new URI("file:///./"+uri.getPath());
+        } catch (URISyntaxException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+        }
+        //uri file:///.test.set/data, path /.test.set/data
+        //uri file:///./test.set/data, path /.test.set/data
+        java.nio.file.Path path = Paths.get(uri);
+        System.out.println("Done:"+path.getParent());
     }
 }
