@@ -117,6 +117,7 @@ public class PosixPermissionUtils {
                 break;
             }
         }
+        System.out.println("---------P.toUri()"+ p.toUri());
         Files.setPosixFilePermissions(Paths.get(p.toUri()), perms);
         return perms;
     }
