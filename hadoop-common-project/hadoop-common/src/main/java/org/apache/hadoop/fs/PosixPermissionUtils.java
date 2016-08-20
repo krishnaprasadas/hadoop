@@ -121,6 +121,9 @@ public class PosixPermissionUtils {
         }
         URI uri = p.toUri();
         java.nio.file.Path nioPath = null;
+        if(uri.getFragment() != null){
+            uri = new URI(uri.substring(0, uri.indexOf('#')-1));
+        }
         if (uri.getScheme() == null) {
             try {
                 String path = uri.getPath();
