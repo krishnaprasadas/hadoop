@@ -84,7 +84,7 @@ public interface GetSpaceUsed {
       if (Shell.WINDOWS) {
         result = WindowsGetSpaceUsed.class;
       } else {
-        result = DU.class;
+        result = WindowsGetSpaceUsed.class;
       }
       if (conf == null) {
         return result;
@@ -158,7 +158,7 @@ public interface GetSpaceUsed {
         if (Shell.WINDOWS) {
           getSpaceUsed = new WindowsGetSpaceUsed(this);
         } else {
-          getSpaceUsed = new DU(this);
+          getSpaceUsed = new WindowsGetSpaceUsed(this);
         }
       }
       // Call init after classes constructors have finished.
