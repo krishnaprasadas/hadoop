@@ -707,7 +707,7 @@ public class RawLocalFileSystem extends FileSystem {
     }
 
     /// loads permissions, owner, and group from `ls -ld`
-private void loadPermissionInfo() {
+        private void loadPermissionInfo() {
             IOException e = null;
             try {
                 java.nio.file.Path path = java.nio.file.Paths.get(getPath().toUri());
@@ -722,8 +722,14 @@ private void loadPermissionInfo() {
                     permission = permission.substring(0, FsPermission.MAX_PERMISSION_LENGTH);
                 }
                 setPermission(FsPermission.valueOf(permission));
+
                 String owner = Files.getOwner(path).getName();
+                /*
+                 * // If on windows domain, token format is DOMAIN\\user and we // want to // extract only the user name if (Shell.WINDOWS) { int i = owner.indexOf('\\'); if (i != -1) owner =
+                 * owner.substring(i + 1); }
+                 */
                 setOwner(owner);
+
                 final PosixFileAttributeView posixFileAttributeView = Files.getFileAttributeView(path, PosixFileAttributeView.class);
                 final PosixFileAttributes posixFileAttributes = posixFileAttributeView.readAttributes();
                 setGroup(posixFileAttributes.group().getName());
@@ -736,6 +742,7 @@ private void loadPermissionInfo() {
                 }
             }
         }
+
 
     @Override
     public void write(DataOutput out) throws IOException {
@@ -765,7 +772,7 @@ private void loadPermissionInfo() {
       NativeIO.POSIX.chmod(pathToFile(p).getCanonicalPath(),
                      permission.toShort());
     } else {
-      PosixPermissionUtils.setPosixPermission(p, permission);
+      PosixPermissionUtils.setPosixPermission(workingDir,p, permission);
     }
   }
  
